@@ -104,19 +104,66 @@ browser makes same-origin requests and CORS never enters the picture.
 .
 ├── .env.example                  # template for local secrets
 ├── pom.xml
-└── src/
-    ├── main/java/com/bank/lms/
-    │   ├── config/               # SecurityConfig, CORS, OpenAPI
-    │   ├── controller/           # HTTP layer
-    │   ├── dto/                  # request/response records
-    │   ├── entity/               # JPA entities
-    │   ├── exception/            # error handling
-    │   ├── repository/           # Spring Data repositories
-    │   ├── security/             # session, CSRF, auth principal
-    │   └── service/              # business logic
-    └── main/resources/
-        └── application.properties
+├── src/
+│   ├── main/java/com/bank/lms/
+│   │   ├── config/               # SecurityConfig, CORS, OpenAPI
+│   │   ├── controller/           # HTTP layer
+│   │   ├── dto/                  # request/response records
+│   │   ├── entity/               # JPA entities
+│   │   ├── exception/            # error handling
+│   │   ├── repository/           # Spring Data repositories
+│   │   ├── security/             # session, CSRF, auth principal
+│   │   └── service/              # business logic
+│   └── main/resources/
+│       └── application.properties
+└── frontend/                     # React SPA
+    ├── src/
+    │   ├── api/                  # one module per backend resource
+    │   ├── auth/                 # session identity + route guards
+    │   ├── components/           # layout/ and ui/
+    │   ├── features/             # one folder per screen
+    │   ├── hooks/                # TanStack Query hooks
+    │   └── lib/                  # httpClient, validation, formatting, EMI
+    └── vite.config.js
 ```
+
+---
+
+## Frontend architecture
+
+`frontend/` is a plain JavaScript React SPA — no TypeScript, no extra framework
+layer. The full rationale is in [`frontend/README.md`](frontend/README.md); the
+load-bearing decisions are:
+
+**One direction for data.** `feature -> hook -> api module -> httpClient ->
+backend`. Pages never touch axios, and only `src/api/` knows a URL exists. The
+axios instance in `src/lib/httpClient.js` is the single place that adds the
+`X-XSRF-TOKEN` header and unwraps the error envelope into a typed `ApiError`.
+
+**No client-side session state.** The session is an httpOnly cookie, so there is
+nothing to store and nothing for an XSS bug to steal. `AuthProvider` re-asks
+`GET /api/auth/me` on mount, which is why a hard refresh keeps you signed in. A
+401 on any other endpoint means the session lapsed: the client notifies
+`AuthProvider`, which clears the query cache and drops back to signed out, so a
+stale tab cannot keep rendering another user's data.
+
+**Every route is a dynamic import.** `src/App.jsx` is the route table and each
+page is `lazy(() => import(...))`. A customer signing in never downloads the
+admin approval queue, and first paint carries only React, the router and axios.
+
+**Two independent queries run in parallel.** On the dashboard the summary and
+the loan list are separate query hooks, so React Query starts both on the same
+render instead of one handler awaiting the other. On customer lookup the same
+applies to the customer record and their loans.
+
+**The EMI preview mirrors the server.** `src/lib/emi.js` reproduces
+`EmiCalculator`, including the 0% case that would otherwise divide 0/0, and
+`src/lib/emi.test.js` asserts the same figures as `EmiCalculatorTest` — so the
+amount shown before approval is provably the amount charged.
+
+**Server-side validation is always the authority.** `src/lib/validation.js`
+mirrors the bean validation for instant feedback, but a failed request writes
+`error.fieldErrors` back onto the individual form fields.
 
 ---
 
@@ -192,6 +239,15 @@ Every error returns the same envelope:
 ## Testing
 
 ```bash
-mvn test                          # backend
-cd frontend && npm test           # frontend
+mvn test                          # backend — 26 tests
+cd frontend && npm test           # frontend — 70 tests
+cd frontend && npm run lint       # oxlint
 ```
+
+The backend suite grew from 1 test in the original to 26, covering typed
+exceptions and their HTTP mapping, the EMI formula (including 0%), account-number
+generation, the registration contract, security rules, and the four list/lookup
+endpoints.
+
+The frontend suite covers the EMI preview, validation rules, `en-IN` formatting,
+`Field` accessibility wiring, and the loan-approval flow against a mocked API.

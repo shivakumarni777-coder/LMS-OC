@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Design tokens. Everything visual references these, so retheming the portal
+   is a change in one place rather than a hunt through components.
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-brand-50: oklch(0.97 0.014 254);
+  --color-brand-100: oklch(0.93 0.032 254);
+  --color-brand-200: oklch(0.88 0.06 254);
+  --color-brand-300: oklch(0.8 0.1 254);
+  --color-brand-400: oklch(0.7 0.15 254);
+  --color-brand-500: oklch(0.62 0.19 254);
+  --color-brand-600: oklch(0.54 0.21 254);
+  --color-brand-700: oklch(0.46 0.19 254);
+  --color-brand-800: oklch(0.39 0.15 254);
+  --color-brand-900: oklch(0.33 0.11 254);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', monospace;
+
+  --radius-card: 0.875rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* A visible focus ring everywhere, not just where a browser guesses. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+
+  /* Respect a user's reduced-motion preference rather than animating anyway. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .skip-link {
+    @apply absolute left-4 z-50 -translate-y-24 rounded-md bg-brand-700 px-4 py-2
+           text-sm font-medium text-white transition-transform
+           focus-visible:translate-y-4;
+  }
+}

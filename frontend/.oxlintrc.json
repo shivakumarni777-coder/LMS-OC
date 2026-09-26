@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/no-array-index-key": "error",
+    "react/jsx-key": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+
+    // Off on purpose. This rule only affects hot-module replacement: it asks
+    // that a module export nothing but components. Three files legitimately
+    // break that, and splitting them would scatter a single concept:
+    //   auth/AuthProvider.jsx    - `useAuth` must sit beside its provider
+    //   components/ui/Badge.jsx  - `statusTone` is the badge's own vocabulary
+    //   components/ui/Field.jsx  - `inputClassName` styles the field's inputs
+    // The cost is a full reload instead of a hot swap in dev, which is a far
+    // better trade than three one-function files.
+    "react/only-export-components": "off"
+  }
+}
