@@ -3,17 +3,23 @@ package com.bank.lms.service;
 import com.bank.lms.dto.LoanApprovalDto;
 import com.bank.lms.dto.LoanResponseDto;
 import com.bank.lms.entity.Loan;
+import com.bank.lms.exception.InvalidRequestException;
+import com.bank.lms.exception.ResourceNotFoundException;
+import com.bank.lms.repository.CustomerRepository;
 import com.bank.lms.repository.LoanRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -23,29 +29,53 @@ class LoanServiceTest {
     @Mock
     private LoanRepository loanRepository;
 
+    @Mock
+    private CustomerRepository customerRepository;
+
+    @Spy
+    private EmiCalculator emiCalculator = new EmiCalculator();
+
     @InjectMocks
     private LoanService loanService;
 
+    private static Loan pendingLoan() {
+        Loan loan = new Loan();
+        loan.setLoanId(1L);
+        loan.setPrincipalAmount(new BigDecimal("5000000"));
+        loan.setInterestRate(new BigDecimal("8.50"));
+        loan.setLoanStatus("PENDING");
+        return loan;
+    }
+
     @Test
-    void testApproveLoan_CalculatesCorrectEmi() {
-        // 1. Arrange: Setup our fake database record
-        Loan dummyLoan = new Loan();
-        dummyLoan.setLoanId(1L);
-        dummyLoan.setPrincipalAmount(new BigDecimal("5000000"));
-        dummyLoan.setInterestRate(new BigDecimal("8.50"));
+    @DisplayName("approving a home loan computes the exact EMI and flips the status")
+    void approveLoanCalculatesEmi() {
+        Loan loan = pendingLoan();
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
+        when(loanRepository.save(any(Loan.class))).thenReturn(loan);
 
-        LoanApprovalDto approvalDto = new LoanApprovalDto();
-        approvalDto.setTenureMonths(240);
+        LoanResponseDto response = loanService.approveLoan(1L, new LoanApprovalDto(240));
 
-        // Instruct Mockito what to return when the repository is called
-        when(loanRepository.findById(1L)).thenReturn(Optional.of(dummyLoan));
-        when(loanRepository.save(any(Loan.class))).thenReturn(dummyLoan);
+        assertEquals(new BigDecimal("43391.16"), response.monthlyEmi());
+        assertEquals("APPROVED", response.loanStatus());
+        assertEquals(240, response.tenureMonths());
+    }
 
-        // 2. Act: Call our actual service method
-        LoanResponseDto response = loanService.approveLoan(1L, approvalDto);
+    @Test
+    @DisplayName("approving an unknown loan id is a 404, not a 500")
+    void approveUnknownLoanThrowsNotFound() {
+        when(loanRepository.findById(99L)).thenReturn(Optional.empty());
 
-        // 3. Assert: Verify the math is mathematically perfect
-        assertEquals(new BigDecimal("43391.16"), response.getMonthlyEmi(), "The EMI calculation should match exactly");
-        assertEquals("APPROVED", response.getLoanStatus(), "The loan status should be updated to APPROVED");
+        assertThrows(ResourceNotFoundException.class,
+                () -> loanService.approveLoan(99L, new LoanApprovalDto(240)));
+    }
+
+    @Test
+    @DisplayName("a zero tenure is rejected rather than producing a divide-by-zero")
+    void approveRejectsZeroTenure() {
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(pendingLoan()));
+
+        assertThrows(InvalidRequestException.class,
+                () -> loanService.approveLoan(1L, new LoanApprovalDto(0)));
     }
 }

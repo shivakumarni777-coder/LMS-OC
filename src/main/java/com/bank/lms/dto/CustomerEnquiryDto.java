@@ -1,30 +1,39 @@
 package com.bank.lms.dto;
 
-import jakarta.validation.constraints.*;
-import lombok.Data;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
 import java.time.LocalDate;
 
-@Data // Lombok annotation that generates Getters, Setters, toString, etc.
-public class CustomerEnquiryDto {
+/** Registration payload for a new bank customer. */
+public record CustomerEnquiryDto(
 
-    @NotBlank(message = "PAN number is strictly mandatory for KYC")
-    @Size(min = 10, max = 10, message = "PAN number must be exactly 10 characters")
-    private String panNo;
+        @NotBlank(message = "Full name cannot be blank")
+        @Size(max = 100, message = "Full name cannot exceed 100 characters")
+        String fullName,
 
-    @NotBlank(message = "Full name cannot be blank")
-    private String fullName;
+        @NotNull(message = "Date of birth is required")
+        @Past(message = "Date of birth must be in the past")
+        LocalDate dob,
 
-    @NotBlank(message = "Phone number is required")
-    @Pattern(regexp = "^\\d{10}$", message = "Phone number must be exactly 10 digits")
-    private String phoneNo;
+        @NotBlank(message = "PAN number is strictly mandatory for KYC")
+        @Pattern(regexp = "[A-Z]{5}[0-9]{4}[A-Z]",
+                message = "PAN must match the format ABCDE1234F")
+        String panNo,
 
-    @Email(message = "Please provide a valid email format")
-    @NotBlank
-    private String email;
+        @NotBlank(message = "Phone number is required")
+        @Pattern(regexp = "\\d{10}", message = "Phone number must be exactly 10 digits")
+        String phoneNo,
 
-    @NotNull(message = "Date of Birth is required")
-    private LocalDate dob;
+        @NotBlank(message = "Email is required")
+        @Email(message = "Please provide a valid email format")
+        @Size(max = 100, message = "Email cannot exceed 100 characters")
+        String email,
 
-    @NotNull(message = "Branch Code must be selected")
-    private Integer branchCode;
+        @NotNull(message = "Branch code must be selected")
+        Integer branchCode) {
 }

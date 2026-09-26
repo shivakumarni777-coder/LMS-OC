@@ -1,12 +1,15 @@
 package com.bank.lms.dto;
 
-import lombok.Data;
-
-@Data
-public class CustomerResponseDto {
-    private String fullName;
-    private Long accountNumber;
-    private String email;
-    private String phoneNo;
-    private Integer branchCode;
+/**
+ * Customer projection safe to return to clients.
+ *
+ * <p>{@code panNo} and {@code dob} are intentionally absent - KYC identifiers
+ * must not be echoed back over the wire.
+ */
+public record CustomerResponseDto(
+        Long accountNumber,
+        String fullName,
+        String email,
+        String phoneNo,
+        Integer branchCode) {
 }

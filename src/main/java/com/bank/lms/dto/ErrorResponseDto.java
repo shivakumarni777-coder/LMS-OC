@@ -1,15 +1,23 @@
 package com.bank.lms.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import java.time.LocalDateTime;
+import java.util.Map;
 
-@Data
-@AllArgsConstructor
-public class ErrorResponseDto {
-    private LocalDateTime timestamp;
-    private int status;
-    private String error;
-    private String message;
-    private String path;
+/**
+ * Single error envelope returned for every failed request.
+ *
+ * @param fieldErrors per-field validation messages, empty when the failure is
+ *                    not field-level
+ */
+public record ErrorResponseDto(
+        LocalDateTime timestamp,
+        int status,
+        String error,
+        String message,
+        String path,
+        Map<String, String> fieldErrors) {
+
+    public ErrorResponseDto {
+        fieldErrors = fieldErrors == null ? Map.of() : Map.copyOf(fieldErrors);
+    }
 }

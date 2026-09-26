@@ -1,20 +1,38 @@
 package com.bank.lms.dto;
 
-import lombok.Data;
+import com.bank.lms.entity.Loan;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-@Data
-public class LoanResponseDto {
-    private Long loanId;
-    private String loanType;
-    private BigDecimal principalAmount;
-    private BigDecimal interestRate;
-    private String loanStatus;
-    private LocalDate applicationDate;
+/** Loan projection returned to clients. */
+public record LoanResponseDto(
+        Long loanId,
+        Long accountNumber,
+        String loanType,
+        BigDecimal principalAmount,
+        BigDecimal interestRate,
+        String loanStatus,
+        LocalDate applicationDate,
+        Integer tenureMonths,
+        BigDecimal monthlyEmi) {
 
-    // added later
-    private Integer tenureMonths;
-    private BigDecimal monthlyEmi;
-
+    /**
+     * Maps a {@link Loan} to its wire representation.
+     *
+     * <p>Must be called while the persistence context is open: the
+     * {@code customer} association is {@code LAZY} and open-in-view is off.
+     */
+    public static LoanResponseDto from(Loan loan) {
+        return new LoanResponseDto(
+                loan.getLoanId(),
+                loan.getCustomer() == null ? null : loan.getCustomer().getAccountNumber(),
+                loan.getLoanType(),
+                loan.getPrincipalAmount(),
+                loan.getInterestRate(),
+                loan.getLoanStatus(),
+                loan.getApplicationDate(),
+                loan.getTenureMonths(),
+                loan.getMonthlyEmi());
+    }
 }
