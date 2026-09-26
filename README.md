@@ -134,10 +134,11 @@ require an authenticated session.
 | POST   | `/api/customers/register`             | public    | Register customer + login   |
 | GET    | `/api/customers/{accountNumber}`      | owner/admin | Customer details          |
 | POST   | `/api/loans/apply`                    | owner     | Apply for a loan            |
+| GET    | `/api/loans`                          | any       | Loans visible to the caller |
+| GET    | `/api/loans/summary`                  | any       | Dashboard aggregate         |
+| GET    | `/api/loans/{loanId}`                 | owner/admin | Single loan              |
+| GET    | `/api/customers/{accountNumber}/loans` | owner/admin | A customer's loans      |
 | PUT    | `/api/loans/{loanId}/approve`         | admin     | Approve + calculate EMI     |
-
-Not yet implemented: `GET /api/loans`, `GET /api/loans/{loanId}` and
-`GET /api/customers/{accountNumber}/loans`.
 
 ### CSRF in practice
 

@@ -3,10 +3,12 @@ package com.bank.lms.service;
 import com.bank.lms.dto.LoanApprovalDto;
 import com.bank.lms.dto.LoanRequestDto;
 import com.bank.lms.dto.LoanResponseDto;
+import com.bank.lms.dto.LoanSummaryDto;
 import com.bank.lms.entity.AppRole;
 import com.bank.lms.entity.AppUser;
 import com.bank.lms.entity.Customer;
 import com.bank.lms.entity.Loan;
+import com.bank.lms.entity.LoanStatus;
 import com.bank.lms.exception.InvalidRequestException;
 import com.bank.lms.exception.ResourceNotFoundException;
 import com.bank.lms.repository.CustomerRepository;
@@ -21,6 +23,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -121,6 +124,103 @@ class LoanServiceTest {
 
         assertThrows(ResourceNotFoundException.class,
                 () -> loanService.approveLoan(99L, new LoanApprovalDto(240)));
+    }
+
+    // ------------------------------------------------------------------ reads
+
+    @Test
+    @DisplayName("an admin listing loans sees every loan")
+    void adminSeesAllLoans() {
+        when(loanRepository.findAllByOrderByLoanIdDesc()).thenReturn(List.of(loanFor(1L, 304012345678L)));
+
+        List<LoanResponseDto> loans = loanService.listLoans(adminPrincipal());
+
+        assertEquals(1, loans.size());
+        assertEquals(304012345678L, loans.getFirst().accountNumber());
+        verify(loanRepository, never()).findByCustomer_AccountNumberOrderByLoanIdDesc(anyLong());
+    }
+
+    @Test
+    @DisplayName("a customer listing loans is scoped to their own account in the query")
+    void customerSeesOnlyOwnLoans() {
+        when(loanRepository.findByCustomer_AccountNumberOrderByLoanIdDesc(304012345678L))
+                .thenReturn(List.of(loanFor(1L, 304012345678L)));
+
+        List<LoanResponseDto> loans =
+                loanService.listLoans(customerPrincipal(304012345678L));
+
+        assertEquals(1, loans.size());
+        verify(loanRepository, never()).findAllByOrderByLoanIdDesc();
+    }
+
+    @Test
+    @DisplayName("a customer cannot read another customer's loan by id")
+    void getLoanEnforcesOwnership() {
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(loanFor(1L, 304012345678L)));
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> loanService.getLoan(1L, customerPrincipal(304099999999L)));
+    }
+
+    @Test
+    @DisplayName("a customer cannot list another customer's loans")
+    void listLoansForCustomerEnforcesOwnership() {
+        assertThrows(ResourceNotFoundException.class,
+                () -> loanService.listLoansForCustomer(304012345678L, customerPrincipal(304099999999L)));
+
+        verify(loanRepository, never()).findByCustomer_AccountNumberOrderByLoanIdDesc(anyLong());
+    }
+
+    @Test
+    @DisplayName("the summary reports a zero row for statuses with no loans")
+    void summaryFillsMissingStatuses() {
+        when(loanRepository.summariseByStatusForAccount(304012345678L))
+                .thenReturn(List.<Object[]>of(new Object[]{"PENDING", 2L, new BigDecimal("1500000")}));
+        when(loanRepository.findByCustomer_AccountNumberOrderByLoanIdDesc(304012345678L))
+                .thenReturn(List.of());
+
+        LoanSummaryDto summary = loanService.summarise(customerPrincipal(304012345678L));
+
+        assertEquals(2, summary.totalLoans());
+        // BigDecimal.equals is scale-sensitive, so compare numerically.
+        assertEquals(0, new BigDecimal("1500000.00").compareTo(summary.totalPrincipal()));
+        assertEquals(LoanStatus.values().length, summary.byStatus().size());
+        assertEquals(2, bucket(summary, LoanStatus.PENDING).count());
+        // APPROVED had no row in the aggregate but must still appear, at zero.
+        assertEquals(0, bucket(summary, LoanStatus.APPROVED).count());
+        assertEquals(0, new BigDecimal("0.00").compareTo(bucket(summary, LoanStatus.APPROVED).principal()));
+    }
+
+    private static LoanSummaryDto.StatusBucket bucket(LoanSummaryDto summary, Object status) {
+        String name = status instanceof LoanStatus s ? s.name() : status.toString();
+        return summary.byStatus().stream()
+                .filter(b -> b.status().equals(name))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static Loan loanFor(Long id, Long accountNumber) {
+        Customer customer = new Customer();
+        customer.setAccountNumber(accountNumber);
+        Loan loan = new Loan();
+        loan.setLoanId(id);
+        loan.setLoanType("HOME");
+        loan.setPrincipalAmount(new BigDecimal("1000000"));
+        loan.setInterestRate(new BigDecimal("8.50"));
+        loan.setLoanStatus("PENDING");
+        loan.setCustomer(customer);
+        return loan;
+    }
+
+    private static AuthenticatedUser adminPrincipal() {
+        return new AuthenticatedUser(AppUser.builder()
+                .userId(1L)
+                .username("admin@example.com")
+                .passwordHash("irrelevant")
+                .role(AppRole.ADMIN)
+                .accountNumber(null)
+                .enabled(true)
+                .build());
     }
 
     @Test
