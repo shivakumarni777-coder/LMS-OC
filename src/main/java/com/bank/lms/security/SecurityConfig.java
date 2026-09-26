@@ -8,6 +8,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.DelegatingSecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.context.annotation.Bean;
@@ -50,6 +54,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository)
                         .csrfTokenRequestHandler(csrfRequestHandler))
+                .securityContext(context -> context
+                        .securityContextRepository(securityContextRepository()))
                 .cors(cors -> { })
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -58,6 +64,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/csrf",
+                                "/api/branches",
                                 "/api/customers/register",
                                 "/error",
                                 "/actuator/health")
@@ -83,6 +90,25 @@ public class SecurityConfig {
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
         return configuration.getAuthenticationManager();
+    }
+
+    /**
+     * Where the {@code SecurityContext} is stored between requests.
+     *
+     * <p>Declaring it as a bean gives {@link AuthController} the very same
+     * instance the filter chain uses, so programmatic login and filter-driven
+     * requests cannot end up writing to two different places.
+     *
+     * <p>The delegating pair matches the framework default: the request attribute
+     * lets a single request reuse the context it already loaded (cheap, and
+     * visible to the rest of the request), and the session is what makes the
+     * login survive to the next one.
+     */
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new DelegatingSecurityContextRepository(
+                new RequestAttributeSecurityContextRepository(),
+                new HttpSessionSecurityContextRepository());
     }
 
     /**

@@ -22,14 +22,6 @@ const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const PHONE_PATTERN = /^\d{10}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-export const BRANCHES = [
-  { value: 101, label: '101 - Main Street' },
-  { value: 102, label: '102 - Central Avenue' },
-  { value: 103, label: '103 - Park Road' },
-  { value: 104, label: '104 - Riverside' },
-  { value: 105, label: '105 - Hillview' },
-];
-
 /** @returns {Record<string, string>} field name -> message; empty when valid. */
 export function validateRegistration(values) {
   const errors = {};

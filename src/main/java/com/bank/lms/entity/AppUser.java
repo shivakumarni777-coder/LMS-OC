@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -61,4 +62,21 @@ public class AppUser {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    /**
+     * Stamps the creation time on the way into the database.
+     *
+     * <p>This is deliberately on the entity rather than in the callers. Every
+     * login is built with {@code AppUser.builder()}, and there is more than one
+     * place that does it (the bootstrap administrator, customer registration),
+     * so relying on each caller to remember the timestamp is how
+     * {@code created_at NOT NULL} ends up violated in production. Assigning it
+     * here makes the column's constraint impossible to break.
+     */
+    @PrePersist
+    void stampCreatedAt() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+    }
 }

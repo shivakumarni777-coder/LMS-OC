@@ -2,6 +2,11 @@ import { http } from '../lib/httpClient.js';
 
 /** Customer API. Shapes mirror the backend DTOs exactly. */
 
+export async function listBranches() {
+  const { data } = await http.get('/branches');
+  return data;
+}
+
 export async function registerCustomer({ password, customer }) {
   const { data } = await http.post('/customers/register', { password, customer });
   return data;

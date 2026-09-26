@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { registerCustomer } from '../../api/customerService.js';
-import { BRANCHES, hasErrors, validateRegistration } from '../../lib/validation.js';
+import { hasErrors, validateRegistration } from '../../lib/validation.js';
+import { useBranches } from '../../hooks/useCustomer.js';
 import Field, { SelectInput, TextInput } from '../../components/ui/Field.jsx';
 import Button from '../../components/ui/Button.jsx';
 import Alert from '../../components/ui/Alert.jsx';
@@ -24,6 +25,7 @@ const EMPTY = {
 export default function RegisterPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: branches = [], isLoading: branchesLoading } = useBranches();
 
   const [values, setValues] = useState(EMPTY);
   const [errors, setErrors] = useState({});
@@ -212,14 +214,15 @@ export default function RegisterPage() {
                     name="branchCode"
                     value={values.branchCode}
                     invalid={invalid}
+                    disabled={branchesLoading}
                     aria-invalid={invalid || undefined}
                     aria-required={required}
                     onChange={(e) => update('branchCode', e.target.value)}
                   >
                     <option value="">Select a branch</option>
-                    {BRANCHES.map((branch) => (
-                      <option key={branch.value} value={branch.value}>
-                        {branch.label}
+                    {branches.map((branch) => (
+                      <option key={branch.branchCode} value={branch.branchCode}>
+                        {branch.branchCode} - {branch.branchName}
                       </option>
                     ))}
                   </SelectInput>

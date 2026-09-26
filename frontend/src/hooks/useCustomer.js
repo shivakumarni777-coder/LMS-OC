@@ -1,5 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { getCustomerByAccount, getCustomerLoans } from '../api/customerService.js';
+import {
+  getCustomerByAccount,
+  getCustomerLoans,
+  listBranches,
+} from '../api/customerService.js';
 
 /**
  * Customer details plus their loan portfolio.
@@ -30,5 +34,24 @@ export function useCustomerLoans(accountNumber) {
     queryFn: () => getCustomerLoans(accountNumber),
     enabled: Boolean(accountNumber),
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Branches offered in the registration form's dropdown.
+ *
+ * Served by the API rather than hardcoded, because the form's value has to
+ * satisfy a foreign key into the same table. A list written into the bundle can
+ * only be a guess at what is in that table, and the guess is invisible until an
+ * insert fails on the constraint.
+ *
+ * Reference data that changes rarely, so it is cached for the life of the tab
+ * and never refetched on focus.
+ */
+export function useBranches() {
+  return useQuery({
+    queryKey: ['branches'],
+    queryFn: listBranches,
+    staleTime: Infinity,
   });
 }
