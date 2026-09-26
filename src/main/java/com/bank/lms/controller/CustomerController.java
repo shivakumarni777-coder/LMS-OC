@@ -1,11 +1,14 @@
 package com.bank.lms.controller;
 
 import com.bank.lms.dto.CustomerEnquiryDto;
+import com.bank.lms.dto.CustomerRegistrationDto;
 import com.bank.lms.dto.CustomerResponseDto;
+import com.bank.lms.security.AuthenticatedUser;
 import com.bank.lms.service.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,19 +25,23 @@ public class CustomerController {
     private final CustomerService customerService;
 
     /**
-     * Registers a customer.
+     * Registers a customer and their login.
      *
      * <p>Returns the new customer projection - including the generated account
      * number - instead of the previous plain-text string.
      */
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public CustomerResponseDto registerCustomer(@Valid @RequestBody CustomerEnquiryDto enquiry) {
-        return customerService.registerCustomer(enquiry);
+    public CustomerRegistrationDto.Result registerCustomer(
+            @Valid @RequestBody CustomerRegistrationDto registration) {
+        return customerService.registerCustomer(registration);
     }
 
+    /** Restricted to the owning customer, or any admin. */
     @GetMapping("/{accountNumber}")
-    public CustomerResponseDto getCustomer(@PathVariable Long accountNumber) {
-        return customerService.getCustomerByAccount(accountNumber);
+    public CustomerResponseDto getCustomer(
+            @PathVariable Long accountNumber,
+            @AuthenticationPrincipal AuthenticatedUser caller) {
+        return customerService.getCustomerByAccount(accountNumber, caller);
     }
 }

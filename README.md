@@ -133,11 +133,43 @@ require an authenticated session.
 | POST   | `/api/auth/logout`                    | any       | End the session             |
 | POST   | `/api/customers/register`             | public    | Register customer + login   |
 | GET    | `/api/customers/{accountNumber}`      | owner/admin | Customer details          |
-| POST   | `/api/loans/apply`                    | customer  | Apply for a loan            |
-| GET    | `/api/loans`                          | any       | Loans visible to the caller |
-| GET    | `/api/loans/{loanId}`                 | owner/admin | Single loan              |
-| GET    | `/api/customers/{accountNumber}/loans` | owner/admin | A customer's loans      |
+| POST   | `/api/loans/apply`                    | owner     | Apply for a loan            |
 | PUT    | `/api/loans/{loanId}/approve`         | admin     | Approve + calculate EMI     |
+
+Not yet implemented: `GET /api/loans`, `GET /api/loans/{loanId}` and
+`GET /api/customers/{accountNumber}/loans`.
+
+### CSRF in practice
+
+The session rides on a cookie, so mutating requests are CSRF-protected.
+
+```
+GET  /api/auth/csrf        -> sets a readable XSRF-TOKEN cookie
+POST /api/auth/login       <- header X-XSRF-TOKEN: <value from cookie>
+```
+
+Every subsequent `POST`/`PUT` must echo the current `XSRF-TOKEN` cookie value in
+the `X-XSRF-TOKEN` header. In development the Vite proxy makes these
+same-origin, so the browser attaches the cookies itself.
+
+### Registration payload
+
+The login username is the customer's email address, so there is one identifier
+to remember rather than two.
+
+```json
+{
+  "password": "at-least-ten-chars",
+  "customer": {
+    "fullName": "Asha Rao",
+    "dob": "1994-03-21",
+    "panNo": "ABCDE1234F",
+    "phoneNo": "9876543210",
+    "email": "asha.rao@example.com",
+    "branchCode": 101
+  }
+}
+```
 
 ### Error shape
 

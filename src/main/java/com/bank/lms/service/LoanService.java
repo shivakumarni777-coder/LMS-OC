@@ -9,6 +9,7 @@ import com.bank.lms.exception.InvalidRequestException;
 import com.bank.lms.exception.ResourceNotFoundException;
 import com.bank.lms.repository.CustomerRepository;
 import com.bank.lms.repository.LoanRepository;
+import com.bank.lms.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +33,14 @@ public class LoanService {
     private final EmiCalculator emiCalculator;
 
     @Transactional
-    public LoanResponseDto applyForLoan(LoanRequestDto request) {
+    public LoanResponseDto applyForLoan(LoanRequestDto request, AuthenticatedUser caller) {
+        // Checked before the lookup so a customer cannot confirm whether an
+        // account number exists by watching the error change.
+        if (caller == null || !caller.canAccess(request.accountNumber())) {
+            throw new ResourceNotFoundException(
+                    "Customer not found with account number: " + request.accountNumber());
+        }
+
         Customer customer = customerRepository.findByAccountNumber(request.accountNumber())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Customer not found with account number: " + request.accountNumber()));
