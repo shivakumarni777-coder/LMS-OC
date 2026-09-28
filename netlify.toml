@@ -34,10 +34,19 @@
   # newer; unpinned, Netlify's default can drift below that and the build fails
   # with an engine error that looks unrelated to the cause.
   NODE_VERSION = "24"
-  # Never enable demo mode on a real deployment: it serves fixture data and
-  # every request appears to succeed against a database that does not exist.
-  # Set NETLIFY_TARGET=demo for the standalone seminar build instead.
-  NETLIFY_TARGET = "live"
+
+  # SEMINAR SETTING - set to "demo" on 2026-09-28 so the site works with no
+  # backend, because the Render service and Aiven database had not been created
+  # yet. In demo mode the app answers its own API calls from in-memory fixtures:
+  # 100 customers, 200 loans, working login and approvals, and no network
+  # dependency at all.
+  #
+  # REVERT THIS TO "live" BEFORE ANY REAL USE. A "live" build needs
+  # LMS_API_ORIGIN pointing at a running backend; without it /api/* returns the
+  # "API address is not configured" error. Demo mode serves plausible data with
+  # no database behind it, so it must never be the committed default on a site
+  # anyone relies on.
+  NETLIFY_TARGET = "demo"
 
 # Client-side routing. A deep link such as /loans or /customers/304000000000
 # does not correspond to a file in the publish directory, so without this the
