@@ -31,8 +31,17 @@
  * request below.
  */
 
-/** Deployment target, e.g. `https://lms-oc-api.onrender.com`. */
-const UPSTREAM = Deno.env.get('LMS_API_ORIGIN') ?? 'http://localhost:8080';
+/**
+ * Deployment target, e.g. `https://lms-oc-api.onrender.com`.
+ *
+ * There is deliberately NO fallback value. An earlier version defaulted to
+ * `http://localhost:8080`, which produced a 502 whose real cause was a missing
+ * environment variable: from Netlify's edge, localhost is Netlify's own machine,
+ * so every request was refused while the error text blamed a sleeping backend.
+ * A wrong default is worse than none, because it turns a configuration mistake
+ * into a mystery.
+ */
+const UPSTREAM = (Deno.env.get('LMS_API_ORIGIN') ?? '').trim().replace(/\/$/, '');
 
 /**
  * Headers that describe a single hop and must not be relayed.
@@ -58,7 +67,20 @@ const BODYLESS = new Set(['GET', 'HEAD']);
 
 export default async (request: Request): Promise<Response> => {
   const incoming = new URL(request.url);
-  const target = `${UPSTREAM.replace(/\/$/, '')}${incoming.pathname}${incoming.search}`;
+
+  // A misconfigured deployment is reported as itself, not as an unreachable
+  // backend. These are different faults with different fixes, and conflating
+  // them sends people looking at a service that was never started.
+  if (!UPSTREAM) {
+    return json(
+      503,
+      'The LMS API address is not configured. Set LMS_API_ORIGIN in Netlify to your '
+        + 'backend URL, or set NETLIFY_TARGET=demo to run the site with no backend at all.',
+      incoming,
+    );
+  }
+
+  const target = `${UPSTREAM}${incoming.pathname}${incoming.search}`;
 
   const headers = new Headers(request.headers);
   // The upstream must see its own host, not the Netlify one, or it generates
@@ -79,14 +101,16 @@ export default async (request: Request): Promise<Response> => {
       redirect: 'manual',
     });
   } catch (cause) {
-    // Distinguish "the API is down" from "the API answered". Collapsing these
-    // makes a dead backend look like an application error, which sends people
-    // looking in the wrong place.
-    return json(502, {
-      error: 'Bad Gateway',
-      message: 'The LMS API is unreachable. It may be starting up or asleep.',
-      detail: cause instanceof Error ? cause.message : String(cause),
-    }, request);
+    // Names the host that was actually tried, because "unreachable" on its own
+    // is not enough to tell a sleeping free-tier service from a typo in the URL.
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    return json(
+      502,
+      `The LMS API at ${UPSTREAM} could not be reached. It may still be starting, `
+        + 'or asleep if it is on a free tier.',
+      incoming,
+      detail,
+    );
   }
 
   const out = new Headers();
@@ -115,16 +139,19 @@ export default async (request: Request): Promise<Response> => {
   });
 };
 
-/** A well-formed error in the same envelope the Spring API uses. */
-function json(status: number, body: Record<string, unknown>, request: Request): Response {
+/**
+ * A well-formed error in the same envelope the Spring API uses, so the app's
+ * error handling parses it exactly as it would a genuine backend failure.
+ */
+function json(status: number, message: string, request: URL, detail?: string): Response {
   return new Response(
     JSON.stringify({
       timestamp: new Date().toISOString(),
       status,
-      error: status === 502 ? 'Bad Gateway' : 'Error',
-      message: body.message,
-      path: new URL(request.url).pathname,
-      detail: body.detail,
+      error: status === 503 ? 'Service Unavailable' : 'Bad Gateway',
+      message,
+      path: request.pathname,
+      ...(detail ? { detail } : {}),
     }),
     {
       status,
