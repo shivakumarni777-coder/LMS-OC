@@ -11,8 +11,8 @@
     <groupId>com.example</groupId>
     <artifactId>demo</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name/>
-    <description/>
+    <name>lms-oc</name>
+    <description>Loan Management System - Spring Boot API</description>
     <url/>
     <licenses>
         <license/>
@@ -75,6 +75,11 @@
     </dependencies>
 
     <build>
+        <!-- Fixed jar name, so the Render start command in render.yaml can name
+             the file exactly. A version-stamped name would mean editing the
+             deploy config on every release, and a wrong guess there fails only
+             at container start - after the deploy is already reported live. -->
+        <finalName>lms-oc</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

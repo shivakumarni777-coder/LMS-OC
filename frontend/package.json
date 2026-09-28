@@ -9,7 +9,11 @@
     "preview": "vite preview",
     "lint": "oxlint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "demo": "vite --mode demo",
+    "build:demo": "vite build --mode demo",
+    "build:target": "node scripts/build-for-target.js",
+    "verify:no-demo-in-prod": "node scripts/assert-no-demo-in-prod.js"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",

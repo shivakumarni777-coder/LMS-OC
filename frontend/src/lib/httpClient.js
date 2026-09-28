@@ -1,4 +1,13 @@
 import axios from 'axios';
+import { createDemoAdapter } from '../demo/adapter.js';
+
+// Standalone demo mode: swaps only the transport, so the interceptors below are
+// unchanged and still run. The flag is substituted at build time, so in a normal
+// production build this branch is statically dead and the fixture module is
+// tree-shaken out - `npm run build` can be grepped to confirm no demo data ships.
+if (import.meta.env.VITE_DEMO_MODE === 'true') {
+  axios.defaults.adapter = createDemoAdapter({ customerCount: 100 });
+}
 
 /**
  * The single HTTP client for the app.

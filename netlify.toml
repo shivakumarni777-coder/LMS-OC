@@ -1,0 +1,59 @@
+# Netlify configuration for the LMS-OC frontend.
+#
+# WHY NETLIFY PROXIES RATHER THAN THE BROWSER CALLING THE API
+# -----------------------------------------------------------
+# The API runs on Render, a different registrable domain from *.netlify.app.
+# If the browser called it directly, the two would be cross-site, and the
+# `SameSite=Strict` session cookie would be withheld: login would appear to
+# succeed and then every subsequent request would 401. It would also require
+# weakening the cookie to `SameSite=None; Secure` plus a CORS allowlist.
+#
+# Proxying through /api/* keeps the browser on a single origin, so the existing
+# cookie policy holds and no CORS configuration is needed. The API host is
+# therefore reached server-to-server only, and never needs to be public.
+#
+# FIRST DEPLOY
+# ------------
+# Set one environment variable in the Netlify UI (Site settings > Environment
+# variables), and deploy from a fresh branch or clear the build cache once:
+#
+#     LMS_API_ORIGIN  =  https://<your-render-service>.onrender.com
+#
+# See docs/deployment.md for the full sequence, including the Aiven database.
+
+[build]
+  # The React app is not at the repository root, so Netlify has to be told to
+  # build from `frontend`. Without this it looks for package.json in the root,
+  # finds none, and the build fails before running a single line of app code.
+  base = "frontend"
+  command = "npm run build:target"
+  publish = "dist"
+
+[build.environment]
+  # Pinned to the major that was tested locally. Vite 8 requires Node 22.12 or
+  # newer; unpinned, Netlify's default can drift below that and the build fails
+  # with an engine error that looks unrelated to the cause.
+  NODE_VERSION = "24"
+  # Never enable demo mode on a real deployment: it serves fixture data and
+  # every request appears to succeed against a database that does not exist.
+  # Set NETLIFY_TARGET=demo for the standalone seminar build instead.
+  NETLIFY_TARGET = "live"
+
+# Client-side routing. A deep link such as /loans or /customers/304000000000
+# does not correspond to a file in the publish directory, so without this the
+# server answers 404 and the app appears broken on every refresh and every
+# pasted link. The status must be 200: a 404 here is a successful SPA fallback.
+#
+# `force` is deliberately absent. Netlify serves an existing file before
+# applying a redirect, so hashed assets under /assets resolve normally instead
+# of being rewritten to index.html and failing to load.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# The API is handled by an edge function rather than by the redirect above.
+# Listed explicitly so the intent is visible and the ordering is unambiguous.
+[[edge_functions]]
+  function = "api-proxy"
+  path = "/api/*"

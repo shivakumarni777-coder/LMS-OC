@@ -1,0 +1,80 @@
+# Render blueprint for the LMS-OC Spring Boot API.
+#
+# WHAT THIS FIXES
+# ---------------
+# Without this file Render has no build command, no start command and no
+# environment wiring, so a deploy either guesses wrong or starts a container
+# that immediately exits. Every setting here is one that cannot be inferred.
+#
+# Before the first deploy, replace the two placeholders marked TODO. Everything
+# else is already correct.
+
+services:
+  - type: web
+    name: lms-oc-api
+    plan: free
+    region: singapore
+
+    # Native (non-Docker) build. Maven runs directly on the image, so there is
+    # no Dockerfile to keep in sync with the JDK and the dependency cache.
+    buildCommand: ./mvnw -B -DskipTests package
+    # `finalName` in pom.xml pins this to target/lms-oc.jar, so this stays
+    # correct across version bumps instead of needing a wildcard.
+    startCommand: java -jar target/lms-oc.jar
+
+    # No actuator dependency, so this uses a real endpoint instead: it is public,
+    # needs no session, and touches the database, which makes it a genuine
+    # readiness signal rather than a liveness one.
+    healthCheckPath: /api/branches
+
+    # Render injects PORT; the app must not assume 8080.
+    autoDeploy: true
+
+    envVars:
+      # --- Required: copy these from the Aiven service ------------------------
+      - key: DB_URL
+        # TODO: paste the Aiven connection string. Needs ?useSSL=true and the
+        # Aiven CA. See docs/deployment.md for the exact form.
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # --- Bootstrap administrator -------------------------------------------
+      # The app refuses to start without a password here, so a typo in the
+      # dashboard fails immediately and visibly rather than leaving an account
+      # with no usable credential.
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        # TODO: set a strong password. Do NOT reuse the local dev value.
+        sync: false
+
+      # --- Proxy / HTTPS ------------------------------------------------------
+      # The frontend is served from a different host (Netlify), so the API is
+      # always behind a TLS-terminating proxy. Without these two the session
+      # cookie is treated as insecure and the app believes it is on http://.
+      #
+      # No CORS_ALLOWED_ORIGINS is set on purpose: Netlify proxies /api/* to
+      # this service, so the browser only ever talks to the Netlify origin and
+      # the request is same-origin. A CORS allowlist would be dead config, and
+      # a wrong one would widen access rather than narrow it.
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: FORWARD_HEADERS_STRATEGY
+        value: framework
+
+      # --- Data safety -------------------------------------------------------
+      # Schema is created by JPA. `update` is right for a demo deployment; a
+      # production system would use `validate` plus real migrations.
+      - key: JPA_DDL_AUTO
+        value: update
+      - key: JPA_SHOW_SQL
+        value: "false"
+
+      # Demo rows have known passwords, so they must never be switched on here.
+      - key: SAMPLE_DATA_ENABLED
+        value: "false"
+      - key: BOOTSTRAP_ADMIN_ENABLED
+        value: "true"
+      - key: BOOTSTRAP_ADMIN_USERNAME
+        value: admin
