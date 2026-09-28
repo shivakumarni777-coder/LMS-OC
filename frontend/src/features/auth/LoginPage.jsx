@@ -6,6 +6,8 @@ import Field, { TextInput } from '../../components/ui/Field.jsx';
 import Button from '../../components/ui/Button.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import Spinner from '../../components/ui/FullPageSpinner.jsx';
+import { isDemoMode } from '../../demo/mode.js';
+import DemoCredentials from '../../demo/DemoCredentials.jsx';
 
 const EMPTY = { username: '', password: '' };
 
@@ -122,6 +124,10 @@ export default function LoginPage() {
             Register as a customer
           </Link>
         </p>
+
+        {/* Presentational only, and unreachable outside a demo build: the flag is
+            a build-time constant, so this is dead code in any live deployment. */}
+        {isDemoMode ? <DemoCredentials onFill={setValues} /> : null}
       </div>
     </div>
   );

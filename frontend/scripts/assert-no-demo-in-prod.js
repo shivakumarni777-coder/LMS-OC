@@ -29,12 +29,24 @@ const DIST = fileURLToPath(new URL('../dist/', import.meta.url));
  * a match is unambiguous evidence that demo code reached the bundle. Generic
  * words such as "demo" are avoided on purpose - UI copy may legitimately use
  * them, and a false positive here would just train people to ignore the check.
+ *
+ * The set is deliberately broad, because it was once too narrow and the check
+ * passed while a whole fixture generator sat in the live bundle. These are the
+ * two shapes that leaked then: the password constant, which tree-shaking did
+ * remove, and the customer-email generator, which it could not, because running
+ * the generator is a side effect. Searching only for the password would have
+ * reported "clean" through that whole bug.
  */
 const FIXTURE_MARKERS = [
   'demo-csrf-token',
-  'lms-oc.test',
   'DemoCustomer!2026',
   'mulberry32',
+  // The email template the fixture generator builds each customer with.
+  'demo.user',
+  // Copy that only the demo credential panel renders.
+  'Demo mode - no backend',
+  // Presentational only: a benign form is not proof the fixtures are absent.
+  'lms-oc.test',
 ];
 
 function collectFiles(dir) {
