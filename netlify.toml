@@ -54,6 +54,14 @@
 
 # The API is handled by an edge function rather than by the redirect above.
 # Listed explicitly so the intent is visible and the ordering is unambiguous.
+#
+# `function` is a bare name, which Netlify resolves against its default edge
+# functions directory, `netlify/edge-functions` *relative to the base directory
+# above*. Because base is "frontend", the file therefore has to live at
+# frontend/netlify/edge-functions/ - not at the repository root. Getting this
+# wrong fails silently: the function is never registered, `/api/*` falls through
+# to the catch-all redirect below, and every API call returns the HTML of
+# index.html with a 200 instead of failing loudly.
 [[edge_functions]]
   function = "api-proxy"
   path = "/api/*"
