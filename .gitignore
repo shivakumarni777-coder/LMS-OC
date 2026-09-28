@@ -52,5 +52,16 @@ logs/
 npm-debug.log*
 coverage/
 .vite/
+LMS-OC-SEMINAR.pptx
+
+# ---------------------------------------------------------------------------
+# Seminar deliverables
+# ---------------------------------------------------------------------------
+# The walkthrough and the account listing are kept out of git: they carry demo
+# credentials and are personal notes, not source. The screenshots are the same,
+# since the login capture shows the demo password on screen. Both are
+# regenerable - the deck is rebuilt by frontend/scripts/build-seminar-deck.py
+# from captures taken off the running site.
 DEMO-LOGINS.txt
 SEMINAR-SHOWCASE.txt
+frontend/seminar-assets/
