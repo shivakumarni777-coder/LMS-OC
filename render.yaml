@@ -20,7 +20,13 @@ services:
     buildCommand: ./mvnw -B -DskipTests package
     # `finalName` in pom.xml pins this to target/lms-oc.jar, so this stays
     # correct across version bumps instead of needing a wildcard.
-    startCommand: java -jar target/lms-oc.jar
+    #
+    # The heap is capped because a free instance has 512MB total. The JVM's
+    # default ergonomics reserve a quarter of RAM for metaspace and let the heap
+    # grow freely, which on a 512MB box means the container is OOM-killed during
+    # startup rather than failing with a clear out-of-memory message. Sized to
+    # fit alongside the JVM's own overhead and the database connection pool.
+    startCommand: java -Xmx288m -XX:MaxMetaspaceSize=128m -jar target/lms-oc.jar
 
     # No actuator dependency, so this uses a real endpoint instead: it is public,
     # needs no session, and touches the database, which makes it a genuine
