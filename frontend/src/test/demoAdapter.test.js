@@ -37,6 +37,11 @@ describe('demo adapter', () => {
   let adapter;
 
   beforeEach(() => {
+    // Storage is cleared as well as the adapter replaced, because the session
+    // now outlives the adapter by design. Without this a sign-in in one test
+    // would be inherited by the next, and every test asserting an anonymous
+    // 401 would pass for the wrong reason or fail outright.
+    window.sessionStorage.clear();
     // A fresh adapter per test, so in-memory mutations cannot leak between them.
     adapter = createDemoAdapter({ customerCount: 10 });
   });
@@ -85,6 +90,48 @@ describe('demo adapter', () => {
       await asCustomer(adapter, 'demo.user000@lms-oc.test');
       await call(adapter, 'post', '/auth/logout');
       expect((await call(adapter, 'get', '/auth/me')).status).toBe(401);
+    });
+
+    it('keeps the session across a page reload', async () => {
+      await asCustomer(adapter, 'demo.user000@lms-oc.test');
+
+      // A reload is modelled by throwing the adapter away and building a new
+      // one over the same storage, which is exactly what the browser does: the
+      // JavaScript context is discarded, only what was persisted survives.
+      const afterReload = createDemoAdapter({ customerCount: 10 });
+      const { status, data } = await call(afterReload, 'get', '/auth/me');
+
+      // This is the F5-on-stage bug. It held the identity in a closure variable,
+      // so a reload answered 401 and threw the presenter back to the login page
+      // in the middle of a demo. The real app never did this, because the
+      // server-set session cookie is resent on every request.
+      expect(status).toBe(200);
+      expect(data.username).toBe('demo.user000@lms-oc.test');
+      expect(data.role).toBe('CUSTOMER');
+    });
+
+    it('stays signed out after a reload once logged out', async () => {
+      await asCustomer(adapter, 'demo.user000@lms-oc.test');
+      await call(adapter, 'post', '/auth/logout');
+
+      const afterReload = createDemoAdapter({ customerCount: 10 });
+
+      // Guards the half-finished sign-out: clearing only the in-memory identity
+      // would leave it in storage, and the reload would quietly sign the user
+      // back in. Signing out has to mean signed out.
+      expect((await call(afterReload, 'get', '/auth/me')).status).toBe(401);
+    });
+
+    it('ignores a corrupted stored identity rather than trusting it', async () => {
+      await asCustomer(adapter, 'demo.user000@lms-oc.test');
+      window.sessionStorage.setItem('lms-oc.demo.principal', '{"not":"an identity"');
+
+      const afterReload = createDemoAdapter({ customerCount: 10 });
+
+      // Unparseable JSON, and separately a well-formed object with no role,
+      // must both read as no session. Trusting either would produce a
+      // half-signed-in app that then fails its first real request.
+      expect((await call(afterReload, 'get', '/auth/me')).status).toBe(401);
     });
   });
 

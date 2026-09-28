@@ -17,6 +17,7 @@
  */
 
 import { buildDataset, calculateEmi, summarise, BRANCHES, DEMO_PASSWORD } from './fixtures.js';
+import { createSessionStore } from './sessionStore.js';
 
 const CSRF_TOKEN = 'demo-csrf-token';
 
@@ -58,12 +59,17 @@ function errorEnvelope(status, message, path, fieldErrors = {}) {
  * accumulated mutations of the previous run, which is what makes a repeated demo
  * behave identically.
  */
-export function createDemoAdapter({ customerCount = 100 } = {}) {
+export function createDemoAdapter({ customerCount = 100, store = createSessionStore() } = {}) {
   const state = buildDataset({ customerCount });
 
   // Who the browser is signed in as, or null. Session semantics are honoured so
   // the app's real guards, redirects and 401 handling all still run.
-  let principal = null;
+  //
+  // Seeded from `store`, not left null, so a reload resumes the session exactly
+  // as the real cookie does. `principal` is still a local variable, so route
+  // matching reads one source of truth rather than reaching into storage on
+  // every request.
+  let principal = store.load();
 
   const isAdmin = () => principal?.role === 'ADMIN';
   const owns = (accountNumber) => principal?.accountNumber === accountNumber;
@@ -90,6 +96,7 @@ export function createDemoAdapter({ customerCount = 100 } = {}) {
         // an identity without doing so would render the dashboard for a moment
         // and then bounce straight back to the login screen on the next request.
         principal = { ...state.admin };
+        store.save(principal);
         return { status: 200, data: identity(principal) };
       }
 
@@ -103,6 +110,7 @@ export function createDemoAdapter({ customerCount = 100 } = {}) {
         role: 'CUSTOMER',
         accountNumber: record.customer.accountNumber,
       };
+      store.save(principal);
       return { status: 200, data: identity(principal) };
     }
 
@@ -115,6 +123,10 @@ export function createDemoAdapter({ customerCount = 100 } = {}) {
 
     if (method === 'POST' && path === '/api/auth/logout') {
       principal = null;
+      // Both halves of the sign-out, not just one. Clearing only the variable
+      // would leave the identity in storage, and the next page load would
+      // silently sign the user straight back in.
+      store.clear();
       return { status: 204, data: '' };
     }
 
