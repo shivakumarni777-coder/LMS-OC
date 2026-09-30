@@ -1,5 +1,6 @@
 package com.bank.lms.security;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -11,6 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.DelegatingSecurityContextRepository;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -40,7 +42,8 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(
             HttpSecurity http,
             AppUserDetailsService userDetailsService,
-            RestAuthenticationHandlers authenticationHandlers) throws Exception {
+            RestAuthenticationHandlers authenticationHandlers,
+            SessionPrincipalRefreshFilter principalRefreshFilter) throws Exception {
 
         CookieCsrfTokenRepository csrfTokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfTokenRepository.setCookiePath("/");
@@ -100,7 +103,46 @@ public class SecurityConfig {
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.deny())
                         .contentTypeOptions(contentType -> { }))
+                // Immediately after the context is loaded, so the principal every
+                // downstream decision reads is the one this has just reconciled with
+                // the database. Positioned here rather than at the head of the chain
+                // because it has to run after SecurityContextHolderFilter to have
+                // anything to read, and before the authorization rules so a refreshed
+                // role would - though only ever a narrower one - be the role applied.
+                .addFilterAfter(principalRefreshFilter, SecurityContextHolderFilter.class)
                 .build();
+    }
+
+    /**
+     * The filter, as a bean so the chain can place it explicitly.
+     *
+     * <p>It takes the shared {@link SecurityContextRepository} rather than building
+     * one, so a refreshed principal lands in the same session store the login
+     * wrote to and {@code AuthController} reads from.
+     */
+    @Bean
+    public SessionPrincipalRefreshFilter sessionPrincipalRefreshFilter(
+            AppUserDetailsService userDetailsService,
+            SecurityContextRepository securityContextRepository) {
+        return new SessionPrincipalRefreshFilter(userDetailsService, securityContextRepository);
+    }
+
+    /**
+     * Keeps the refresh filter out of the plain servlet chain.
+     *
+     * <p>Any {@code Filter} bean is registered with the container by default, which
+     * would run this a second time outside the security chain - once with an empty
+     * security context, so it would do nothing, but at a cost nobody can see from
+     * the code. Disabling the registration leaves exactly one invocation, in the one
+     * place it is meant to run.
+     */
+    @Bean
+    public FilterRegistrationBean<SessionPrincipalRefreshFilter> sessionPrincipalRefreshFilterRegistration(
+            SessionPrincipalRefreshFilter principalRefreshFilter) {
+        FilterRegistrationBean<SessionPrincipalRefreshFilter> registration =
+                new FilterRegistrationBean<>(principalRefreshFilter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean
