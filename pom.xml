@@ -72,6 +72,20 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+          In-memory database for the context test only. The application itself
+          runs on MySQL (see application.properties), and unit tests mock their
+          repositories, so without this nothing ever builds a real EntityManagerFactory
+          during the build: a mistyped @Column, a bad enum mapping or a broken
+          SecurityConfig would pass every test and then fail on first run against
+          the developer's own database.
+          Test scope, so it is not on the runtime classpath of the shipped jar.
+        -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

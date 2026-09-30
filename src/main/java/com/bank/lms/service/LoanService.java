@@ -61,6 +61,16 @@ public class LoanService {
         return LoanResponseDto.from(loanRepository.save(loan));
     }
 
+    /**
+     * Approves a pending loan and fixes its schedule.
+     *
+     * <p>The status guard is the reason an already-approved loan cannot be
+     * re-approved with a different tenure. Approving is not idempotent in effect:
+     * it overwrites the tenure and recalculates the EMI, so a second call would
+     * silently restate a disbursed contract on the strength of a retried
+     * request. Rejecting with a clear message beats a 200 that quietly changes
+     * what the customer owes.
+     */
     @Transactional
     public LoanResponseDto approveLoan(Long loanId, LoanApprovalDto approval) {
         Loan loan = loanRepository.findById(loanId)
@@ -68,6 +78,12 @@ public class LoanService {
                     log.warn("Approval failed: no loan with id {}", loanId);
                     return new ResourceNotFoundException("Loan not found with ID: " + loanId);
                 });
+
+        if (!LoanStatus.PENDING.name().equals(loan.getLoanStatus())) {
+            log.warn("Approval refused for loan {}: already {}", loanId, loan.getLoanStatus());
+            throw new InvalidRequestException(
+                    "Loan " + loanId + " has already been " + loan.getLoanStatus() + ".");
+        }
 
         BigDecimal emi = emiCalculator.calculate(
                 loan.getPrincipalAmount(), loan.getInterestRate(), approval.tenureMonths());
@@ -92,6 +108,28 @@ public class LoanService {
     }
 
     // ---------------------------------------------------------------- reads
+
+    /**
+     * The officer's review queue: applications still awaiting a decision, oldest
+     * first.
+     *
+     * <p>A separate endpoint rather than a client-side filter over
+     * {@link #listLoans}, so the page cannot be pointed at an arbitrary status
+     * and so the ordering is decided once on the server.
+     *
+     * <p>Admin-only is enforced by the filter chain, which covers the whole
+     * {@code /api/admin/**} prefix. A check in here as well would want a 403,
+     * and there is no handler for that - the catch-all in
+     * {@code GlobalExceptionHandler} would report an authorization failure as a
+     * server error, which is a worse answer than never reaching this method.
+     */
+    @Transactional(readOnly = true)
+    public List<LoanResponseDto> listPendingForReview() {
+        return loanRepository.findByLoanStatusOrderByApplicationDateAsc(LoanStatus.PENDING.name())
+                .stream()
+                .map(LoanResponseDto::from)
+                .toList();
+    }
 
     /**
      * Loans visible to the caller: everything for an admin, only their own for

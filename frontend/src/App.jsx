@@ -16,9 +16,14 @@ const LoginPage = lazy(() => import('./features/auth/LoginPage.jsx'));
 const RegisterPage = lazy(() => import('./features/customers/RegisterPage.jsx'));
 const DashboardPage = lazy(() => import('./features/dashboard/DashboardPage.jsx'));
 const LoansPage = lazy(() => import('./features/loans/LoansPage.jsx'));
+const LoanDetailPage = lazy(() => import('./features/loans/LoanDetailPage.jsx'));
 const ApplyLoanPage = lazy(() => import('./features/loans/ApplyLoanPage.jsx'));
 const CustomerLookupPage = lazy(() => import('./features/customers/CustomerLookupPage.jsx'));
 const MyAccountPage = lazy(() => import('./features/customers/MyAccountPage.jsx'));
+const AccountRequestsPage = lazy(() => import('./features/accounts/AccountRequestsPage.jsx'));
+const AccountRequestReviewPage = lazy(
+  () => import('./features/accounts/AccountRequestReviewPage.jsx'),
+);
 const NotFoundPage = lazy(() => import('./features/NotFoundPage.jsx'));
 
 export default function App() {
@@ -42,6 +47,16 @@ export default function App() {
               {/* Admin only. Nested, so a non-admin never renders the page. */}
               <Route element={<RequireRole role="ADMIN" />}>
                 <Route path="loans/pending" element={<LoansPage pendingOnly />} />
+                {/* Coexists with `loans/apply` and `loans/pending` above
+                    because React Router ranks a static segment above a dynamic
+                    one, so those paths still match their own routes rather than
+                    being swallowed as a loanId of "apply" or "pending". */}
+                <Route path="loans/:loanId" element={<LoanDetailPage />} />
+                <Route path="accounts/requests" element={<AccountRequestsPage />} />
+                <Route
+                  path="accounts/requests/:requestId"
+                  element={<AccountRequestReviewPage />}
+                />
                 <Route path="customers/register" element={<RegisterPage />} />
                 <Route path="customers" element={<CustomerLookupPage />} />
               </Route>

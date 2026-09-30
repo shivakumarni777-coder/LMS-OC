@@ -7,6 +7,7 @@ import Alert from '../../components/ui/Alert.jsx';
 import Badge, { statusTone } from '../../components/ui/Badge.jsx';
 import Spinner from '../../components/ui/FullPageSpinner.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
+import DetailRow from '../../components/ui/DetailRow.jsx';
 
 /** The signed-in customer's own account, resolved from the session identity. */
 export default function MyAccountPage() {
@@ -33,17 +34,17 @@ export default function MyAccountPage() {
           <Card className="lg:col-span-2">
             <CardHeader title="Details" />
             <CardBody>
-              <dl className="flex flex-col gap-3 text-sm">
-                <Row label="Name" value={customer.data.fullName} />
-                <Row
-                  label="Account"
-                  value={formatAccountNumber(customer.data.accountNumber)}
-                  mono
-                />
-                <Row label="Email" value={customer.data.email} />
-                <Row label="Phone" value={customer.data.phoneNo} mono />
-                <Row label="Branch" value={customer.data.branchCode} />
-              </dl>
+            <dl className="flex flex-col gap-3 text-sm">
+              <DetailRow label="Name" value={customer.data.fullName} />
+              <DetailRow
+                label="Account"
+                value={formatAccountNumber(customer.data.accountNumber)}
+                mono
+              />
+              <DetailRow label="Email" value={customer.data.email} />
+              <DetailRow label="Phone" value={customer.data.phoneNo} mono />
+              <DetailRow label="Branch" value={customer.data.branchCode} />
+            </dl>
             </CardBody>
           </Card>
 
@@ -91,16 +92,5 @@ export default function MyAccountPage() {
         </div>
       )}
     </>
-  );
-}
-
-function Row({ label, value, mono = false }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className={`text-right font-medium text-slate-900 ${mono ? 'font-mono text-xs' : ''}`}>
-        {value ?? '—'}
-      </dd>
-    </div>
   );
 }

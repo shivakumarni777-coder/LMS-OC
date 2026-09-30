@@ -20,6 +20,7 @@ export default function AppShell() {
         { to: '/', label: 'Dashboard', end: true },
         { to: '/loans', label: 'All loans' },
         { to: '/loans/pending', label: 'Approvals' },
+        { to: '/accounts/requests', label: 'Account requests' },
         { to: '/customers/register', label: 'Register customer' },
         { to: '/customers', label: 'Lookup' },
       ]

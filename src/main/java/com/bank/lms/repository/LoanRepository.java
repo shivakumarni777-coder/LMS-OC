@@ -26,6 +26,17 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     @EntityGraph(attributePaths = "customer")
     List<Loan> findByLoanStatusOrderByLoanIdDesc(String loanStatus);
 
+    /**
+     * The review queue, oldest application first.
+     *
+     * <p>Distinct from the other {@code findByLoanStatus...} method in ordering:
+     * an officer works a queue in the order requests arrived, so a descending
+     * list would show them the most recent submission first and the oldest -
+     * the one that has been waiting longest for a decision - last.
+     */
+    @EntityGraph(attributePaths = "customer")
+    List<Loan> findByLoanStatusOrderByApplicationDateAsc(String loanStatus);
+
     @Override
     @EntityGraph(attributePaths = "customer")
     Optional<Loan> findById(Long loanId);

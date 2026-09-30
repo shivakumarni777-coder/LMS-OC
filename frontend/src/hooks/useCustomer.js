@@ -38,6 +38,24 @@ export function useCustomerLoans(accountNumber) {
 }
 
 /**
+ * Just the customer record, without their loan portfolio.
+ *
+ * A separate hook from {@link useCustomer} because the loan review screen wants
+ * the applicant, not the applicant's loans - it is already displaying one of
+ * them, and the portfolio is a second round trip to render nothing. Shares the
+ * `['customer', accountNumber]` key with {@link useCustomer}, so the two still
+ * read and write one cache entry rather than keeping duplicate copies.
+ */
+export function useCustomerProfile(accountNumber) {
+  return useQuery({
+    queryKey: ['customer', accountNumber],
+    queryFn: () => getCustomerByAccount(accountNumber),
+    enabled: Boolean(accountNumber),
+    staleTime: 60_000,
+  });
+}
+
+/**
  * Branches offered in the registration form's dropdown.
  *
  * Served by the API rather than hardcoded, because the form's value has to

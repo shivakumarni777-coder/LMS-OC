@@ -71,6 +71,22 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/loans/*/approve").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Documents hang off a loan, so they need the same
+                        // owner-or-admin check as the loan itself. Stated here as
+                        // well as in the service: without an explicit rule these
+                        // paths would fall through to anyRequest().authenticated()
+                        // and the only thing between one customer and another's
+                        // paperwork would be a method call further in.
+                        .requestMatchers("/api/loans/*/documents").authenticated()
+                        .requestMatchers("/api/documents/**").authenticated()
+                        // Self-service endpoints, so an administrator asking to
+                        // open an account gets a clear 403 rather than a
+                        // customer-shaped answer that makes no sense.
+                        .requestMatchers(
+                                "/api/account/status",
+                                "/api/accounts/requests",
+                                "/api/accounts/requests/me")
+                        .hasRole("CUSTOMER")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(authenticationHandlers)

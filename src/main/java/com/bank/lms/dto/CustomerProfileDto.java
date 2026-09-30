@@ -9,8 +9,17 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
-/** Registration payload for a new bank customer. */
-public record CustomerEnquiryDto(
+/**
+ * Who a person is: the details needed to create their login and profile.
+ *
+ * <p>There is deliberately no PAN here. A PAN is a customer-record field, and a
+ * customer record does not exist until an account has been opened - the account
+ * being what a loan is booked against. Asking for the PAN at registration would
+ * mean either storing it somewhere with no customer to hang it on, or creating
+ * the customer record early, which is the thing the account-opening step exists
+ * to avoid. The customer supplies their PAN later, on the account-opening form.
+ */
+public record CustomerProfileDto(
 
         @NotBlank(message = "Full name cannot be blank")
         @Size(max = 100, message = "Full name cannot exceed 100 characters")
@@ -19,11 +28,6 @@ public record CustomerEnquiryDto(
         @NotNull(message = "Date of birth is required")
         @Past(message = "Date of birth must be in the past")
         LocalDate dob,
-
-        @NotBlank(message = "PAN number is strictly mandatory for KYC")
-        @Pattern(regexp = "[A-Z]{5}[0-9]{4}[A-Z]",
-                message = "PAN must match the format ABCDE1234F")
-        String panNo,
 
         @NotBlank(message = "Phone number is required")
         @Pattern(regexp = "\\d{10}", message = "Phone number must be exactly 10 digits")

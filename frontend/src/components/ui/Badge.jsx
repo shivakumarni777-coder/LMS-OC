@@ -20,13 +20,24 @@ export default function Badge({ tone = 'neutral', children }) {
   );
 }
 
-/** Maps a loan status to a tone, so every screen colours it identically. */
+/**
+ * Maps a status to a tone, so every screen colours the same status identically.
+ *
+ * `REJECTED` is here for the account-opening queue and for documents. It is not
+ * a loan status - a loan is approved, disbursed or closed - but both of those
+ * other workflows can be turned down, and a shared mapper is what stops a
+ * rejection being rendered as a neutral pill on one screen and a red one on
+ * another.
+ */
 export function statusTone(status) {
   switch (status) {
     case 'APPROVED':
+    case 'VERIFIED':
       return 'success';
     case 'PENDING':
       return 'warning';
+    case 'REJECTED':
+      return 'danger';
     case 'DISBURSED':
       return 'info';
     case 'CLOSED':

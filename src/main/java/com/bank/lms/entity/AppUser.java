@@ -16,14 +16,24 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 /**
  * A login that can authenticate against the system.
  *
  * <p>{@code accountNumber} links a login to the customer it belongs to. It is
- * {@code null} for staff accounts such as the bootstrap administrator, which is
- * why ownership checks must tolerate a null rather than assume every principal
- * owns a customer record.
+ * {@code null} in two cases: for staff accounts such as the bootstrap
+ * administrator, and for a customer who has registered a profile but has not yet
+ * had a bank account opened for them. Ownership checks must tolerate a null
+ * rather than assume every principal owns a customer record.
+ *
+ * <p>{@code dob}, {@code phoneNo} and {@code branchCode} are the profile fields a
+ * customer supplies when they register, before any account exists. They exist so
+ * that opening an account later needs nothing but the PAN the customer types on
+ * the account-opening form: without them, {@link Customer}'s mandatory
+ * date-of-birth, phone and branch columns would have no source and the approval
+ * step would have to invent values. They are nullable because staff logins have
+ * no customer profile at all.
  */
 @Entity
 @Table(name = "app_user")
@@ -55,6 +65,16 @@ public class AppUser {
 
     @Column(name = "full_name", length = 100)
     private String fullName;
+
+    /** Profile fields, captured at registration. Nullable: staff logins have none. */
+    @Column(name = "dob")
+    private LocalDate dob;
+
+    @Column(name = "phone_no", length = 15)
+    private String phoneNo;
+
+    @Column(name = "branch_code")
+    private Integer branchCode;
 
     @Column(name = "enabled", nullable = false)
     @Builder.Default

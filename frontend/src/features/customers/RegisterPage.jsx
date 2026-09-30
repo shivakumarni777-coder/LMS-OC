@@ -2,26 +2,52 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { registerCustomer } from '../../api/customerService.js';
-import { hasErrors, validateRegistration } from '../../lib/validation.js';
+import {
+  REGISTRATION_FIELDS,
+  hasErrors,
+  splitFieldErrors,
+  validateRegistration,
+} from '../../lib/validation.js';
 import { useBranches } from '../../hooks/useCustomer.js';
 import Field, { SelectInput, TextInput } from '../../components/ui/Field.jsx';
 import Button from '../../components/ui/Button.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import PageHeader from '../../components/layout/PageHeader.jsx';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card.jsx';
-import { formatAccountNumber } from '../../lib/format.js';
 
 const EMPTY = {
   fullName: '',
   dob: '',
-  panNo: '',
   phoneNo: '',
   email: '',
   branchCode: '',
   password: '',
 };
 
-/** Registration is public, so this page sits outside the authenticated shell. */
+/** Every key this form renders, for splitting the server's fieldErrors. */
+const INPUT_KEYS = [
+  REGISTRATION_FIELDS.password,
+  REGISTRATION_FIELDS.fullName,
+  REGISTRATION_FIELDS.dob,
+  REGISTRATION_FIELDS.phoneNo,
+  REGISTRATION_FIELDS.email,
+  REGISTRATION_FIELDS.branchCode,
+];
+
+/**
+ * Registration: create a login and a profile.
+ *
+ * No PAN and no account number, and that is the whole point of the page. A bank
+ * account is opened separately, through a request an officer approves, because
+ * a loan is booked against an account and an account is not something a web form
+ * can grant itself. The PAN is collected on that later form, once, and asked for
+ * as the one detail the bank does not already hold.
+ *
+ * So this page ends at "you have an account login", and the success screen says
+ * exactly that rather than implying an account exists - telling someone their
+ * account number is ready when none has been opened is the sort of small lie
+ * that costs a support call later.
+ */
 export default function RegisterPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -50,21 +76,30 @@ export default function RegisterPage() {
       return;
     }
 
-    const { password, ...customer } = values;
     setBusy(true);
     try {
       const result = await registerCustomer({
-        password,
-        customer: {
-          ...customer,
-          branchCode: Number(customer.branchCode),
+        password: values.password,
+        profile: {
+          fullName: values.fullName.trim(),
+          dob: values.dob,
+          phoneNo: values.phoneNo.trim(),
+          email: values.email.trim(),
+          // The backend types this as an integer and the branch dropdown's
+          // values are numeric, so it is sent as a number rather than the
+          // string the select produces.
+          branchCode: Number(values.branchCode),
         },
       });
       setCreated(result);
       queryClient.clear();
     } catch (error) {
-      setErrors(error.fieldErrors ?? {});
-      setFailure(error.message ?? 'Registration failed. Please try again.');
+      // The server's keys are already the cascaded paths this form validates on,
+      // so they are used as-is. A message on the profile object itself has no
+      // input to attach to and is shown at the top instead of being dropped.
+      const { inputs, general } = splitFieldErrors(error.fieldErrors, INPUT_KEYS);
+      setErrors(inputs);
+      setFailure([...(general ?? []), error.message].filter(Boolean).join(' '));
     } finally {
       setBusy(false);
     }
@@ -73,15 +108,19 @@ export default function RegisterPage() {
   if (created) {
     return (
       <>
-        <PageHeader title="Registration complete" description="The account is ready to use." />
+        <PageHeader
+          title="Registration complete"
+          description="Your login is ready. A bank account is a separate step."
+        />
         <div className="mx-auto max-w-lg">
-          <Alert tone="success" title={`Welcome, ${created.customer.fullName}`}>
+          <Alert tone="success" title={`Welcome, ${created.fullName}`}>
             <p>
-              Your account number is{' '}
-              <strong className="font-mono">{formatAccountNumber(created.customer.accountNumber)}</strong>.
+              Sign in as <strong>{created.username}</strong> with the password you just chose.
             </p>
             <p className="mt-2">
-              Sign in with <strong>{created.username}</strong> and the password you just chose.
+              No bank account has been opened yet. Loans are booked against an account, so the next
+              step is to request one: sign in, open <strong>Apply for a loan</strong>, and you will be
+              asked for your PAN.
             </p>
           </Alert>
           <div className="mt-4 flex gap-2">
@@ -96,7 +135,7 @@ export default function RegisterPage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader
         title="Register a customer"
-        description="Creates the customer record and their login in one step."
+        description="Creates their login and profile. A bank account is opened separately."
       />
 
       {failure ? (
@@ -110,7 +149,7 @@ export default function RegisterPage() {
         <CardBody>
           <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Full name" error={errors.fullName} required>
+              <Field label="Full name" error={errors[REGISTRATION_FIELDS.fullName]} required>
                 {({ id, describedBy, invalid, required }) => (
                   <TextInput
                     id={id}
@@ -126,7 +165,7 @@ export default function RegisterPage() {
                 )}
               </Field>
 
-              <Field label="Date of birth" error={errors.dob} required>
+              <Field label="Date of birth" error={errors[REGISTRATION_FIELDS.dob]} required>
                 {({ id, describedBy, invalid, required }) => (
                   <TextInput
                     id={id}
@@ -143,29 +182,11 @@ export default function RegisterPage() {
               </Field>
 
               <Field
-                label="PAN number"
-                error={errors.panNo}
-                hint="Ten characters, for example ABCDE1234F."
+                label="Phone number"
+                error={errors[REGISTRATION_FIELDS.phoneNo]}
+                hint="Exactly 10 digits."
                 required
               >
-                {({ id, describedBy, invalid, required }) => (
-                  <TextInput
-                    id={id}
-                    aria-describedby={describedBy}
-                    name="panNo"
-                    maxLength={10}
-                    spellCheck={false}
-                    className="font-mono uppercase"
-                    value={values.panNo}
-                    invalid={invalid}
-                    aria-invalid={invalid || undefined}
-                    aria-required={required}
-                    onChange={(e) => update('panNo', e.target.value.toUpperCase())}
-                  />
-                )}
-              </Field>
-
-              <Field label="Phone number" error={errors.phoneNo} hint="Exactly 10 digits." required>
                 {({ id, describedBy, invalid, required }) => (
                   <TextInput
                     id={id}
@@ -186,7 +207,7 @@ export default function RegisterPage() {
 
               <Field
                 label="Email address"
-                error={errors.email}
+                error={errors[REGISTRATION_FIELDS.email]}
                 hint="Also used as the sign-in username."
                 required
               >
@@ -206,7 +227,7 @@ export default function RegisterPage() {
                 )}
               </Field>
 
-              <Field label="Branch" error={errors.branchCode} required>
+              <Field label="Branch" error={errors[REGISTRATION_FIELDS.branchCode]} required>
                 {({ id, describedBy, invalid, required }) => (
                   <SelectInput
                     id={id}
@@ -232,7 +253,7 @@ export default function RegisterPage() {
 
             <Field
               label="Password"
-              error={errors.password}
+              error={errors[REGISTRATION_FIELDS.password]}
               hint="At least 10 characters. This is the password you will sign in with."
               required
             >
@@ -271,7 +292,7 @@ export default function RegisterPage() {
             </div>
 
             <p className="text-xs text-slate-500">
-              Your PAN is used for KYC only and is never shown again after registration.
+              Your PAN is not asked for here. It is collected once, when you request a bank account.
             </p>
           </form>
         </CardBody>

@@ -76,6 +76,9 @@ public class AuthService {
                 user.getFullName(),
                 user.getRole(),
                 user.getAccountNumber(),
+                user.getDob(),
+                user.getPhoneNo(),
+                user.getBranchCode(),
                 Instant.now());
     }
 }

@@ -28,6 +28,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
@@ -126,6 +127,57 @@ class LoanServiceTest {
                 () -> loanService.approveLoan(99L, new LoanApprovalDto(240)));
     }
 
+    // -------------------------------------------------------- approval is once-only
+
+    @Test
+    @DisplayName("an already-approved loan cannot be re-approved on a shorter tenure")
+    void approveRefusesAnAlreadyApprovedLoan() {
+        Loan loan = pendingLoan();
+        loan.setLoanStatus(LoanStatus.APPROVED.name());
+        loan.setTenureMonths(240);
+        loan.setMonthlyEmi(new BigDecimal("43391.16"));
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
+
+        // Approving is not idempotent in effect: it overwrites the tenure and
+        // recalculates the EMI. A retried request would silently restate a
+        // disbursed contract, so it is refused even though the loan exists.
+        InvalidRequestException thrown = assertThrows(InvalidRequestException.class,
+                () -> loanService.approveLoan(1L, new LoanApprovalDto(120)));
+
+        assertTrue(thrown.getMessage().contains("APPROVED"), thrown.getMessage());
+        verify(loanRepository, never()).save(any(Loan.class));
+        assertEquals(240, loan.getTenureMonths(), "the agreed schedule is untouched");
+    }
+
+    @Test
+    @DisplayName("a disbursed loan cannot be approved again")
+    void approveRefusesADisbursedLoan() {
+        Loan loan = pendingLoan();
+        loan.setLoanStatus(LoanStatus.DISBURSED.name());
+        loan.setTenureMonths(240);
+        loan.setMonthlyEmi(new BigDecimal("43391.16"));
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
+
+        InvalidRequestException thrown = assertThrows(InvalidRequestException.class,
+                () -> loanService.approveLoan(1L, new LoanApprovalDto(120)));
+
+        assertTrue(thrown.getMessage().contains("DISBURSED"), thrown.getMessage());
+        verify(loanRepository, never()).save(any(Loan.class));
+        assertEquals(240, loan.getTenureMonths(), "the disbursed schedule is untouched");
+    }
+
+    @Test
+    @DisplayName("a closed loan cannot be approved")
+    void approveRefusesAClosedLoan() {
+        Loan loan = pendingLoan();
+        loan.setLoanStatus(LoanStatus.CLOSED.name());
+        when(loanRepository.findById(1L)).thenReturn(Optional.of(loan));
+
+        assertThrows(InvalidRequestException.class,
+                () -> loanService.approveLoan(1L, new LoanApprovalDto(240)));
+        verify(loanRepository, never()).save(any(Loan.class));
+    }
+
     // ------------------------------------------------------------------ reads
 
     @Test
@@ -197,6 +249,25 @@ class LoanServiceTest {
                 .filter(b -> b.status().equals(name))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    @Test
+    @DisplayName("the review queue holds only pending applications")
+    void reviewQueueHoldsOnlyPendingApplications() {
+        Loan older = loanFor(1L, 304012345678L);
+        Loan newer = loanFor(2L, 304099999999L);
+        newer.setLoanStatus(LoanStatus.APPROVED.name());
+
+        when(loanRepository.findByLoanStatusOrderByApplicationDateAsc(LoanStatus.PENDING.name()))
+                .thenReturn(List.of(older));
+
+        List<LoanResponseDto> queue = loanService.listPendingForReview();
+
+        // Filtering and ordering happen in the query, so an approved loan cannot
+        // reach the queue even if a caller asks for one directly.
+        assertEquals(1, queue.size());
+        assertEquals(1L, queue.getFirst().loanId());
+        assertEquals("PENDING", queue.getFirst().loanStatus());
     }
 
     private static Loan loanFor(Long id, Long accountNumber) {

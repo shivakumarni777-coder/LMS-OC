@@ -1,7 +1,6 @@
 package com.bank.lms.controller;
 
-import com.bank.lms.dto.CustomerEnquiryDto;
-import com.bank.lms.dto.CustomerRegistrationDto;
+import com.bank.lms.dto.CustomerProfileRegistrationDto;
 import com.bank.lms.dto.CustomerResponseDto;
 import com.bank.lms.dto.LoanResponseDto;
 import com.bank.lms.security.AuthenticatedUser;
@@ -30,16 +29,18 @@ public class CustomerController {
     private final LoanService loanService;
 
     /**
-     * Registers a customer and their login.
+     * Registers a customer's login and profile.
      *
-     * <p>Returns the new customer projection - including the generated account
-     * number - instead of the previous plain-text string.
+     * <p>Creates no bank account. The account is opened separately, through an
+     * account-opening request, so that signing in without one is a state the user
+     * can see and act on rather than something that cannot occur. The response
+     * therefore carries the sign-in username and the account number as null.
      */
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public CustomerRegistrationDto.Result registerCustomer(
-            @Valid @RequestBody CustomerRegistrationDto registration) {
-        return customerService.registerCustomer(registration);
+    public CustomerProfileRegistrationDto.Result registerCustomer(
+            @Valid @RequestBody CustomerProfileRegistrationDto registration) {
+        return customerService.registerCustomerProfile(registration);
     }
 
     /** Restricted to the owning customer, or any admin. */

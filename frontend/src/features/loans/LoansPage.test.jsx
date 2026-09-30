@@ -1,16 +1,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoansPage from './LoansPage.jsx';
-import { approveLoan, listLoans } from '../../api/loanService.js';
+import { listLoans } from '../../api/loanService.js';
 
 vi.mock('../../api/loanService.js', () => ({
   listLoans: vi.fn(),
   approveLoan: vi.fn(),
   fetchLoanSummary: vi.fn(),
   applyForLoan: vi.fn(),
+  getLoan: vi.fn(),
 }));
 
 const ADMIN = { user: { role: 'ADMIN', accountNumber: null }, isAdmin: true };
@@ -58,7 +58,8 @@ describe('LoansPage', () => {
     // Indian digit grouping: 5,000,000 renders as 50,00,000.
     expect(await screen.findByText('₹50,00,000.00')).toBeInTheDocument();
     expect(screen.getByText('Pending')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    // A pending loan's action is "Review", which opens the loan's own page.
+    expect(screen.getByRole('link', { name: 'Review' })).toBeInTheDocument();
   });
 
   it('shows an empty state rather than a bare table when there is nothing', async () => {
@@ -92,60 +93,43 @@ describe('LoansPage', () => {
     expect(screen.getAllByRole('row')).toHaveLength(2); // header + one loan
   });
 
-  it('previews the EMI as the tenure is chosen, then approves', async () => {
-    const user = userEvent.setup();
+  it('sends the officer to the loan\'s own page rather than opening a dialog', async () => {
     listLoans.mockResolvedValue([PENDING_LOAN]);
-    approveLoan.mockResolvedValue({
-      ...PENDING_LOAN,
-      loanStatus: 'APPROVED',
-      tenureMonths: 240,
-      monthlyEmi: 43391.16,
-    });
 
     renderPage();
-    await screen.findByRole('button', { name: 'Approve' });
-    await user.click(screen.getByRole('button', { name: 'Approve' }));
 
-    // The preset buttons make the tenure easy to set in a test and in use.
-    await user.click(screen.getByRole('button', { name: '240m' }));
-
-    expect(await screen.findByText('₹43,391.16')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Confirm approval' }));
-
-    await waitFor(() => {
-      expect(approveLoan).toHaveBeenCalledWith(7, { tenureMonths: 240 });
-    });
-    expect(await screen.findByText(/Loan 7 approved/)).toBeInTheDocument();
+    // The review page, not a modal: deciding a loan means reading the applicant's
+    // details and their documents, and a popover over a list has nowhere to put
+    // either. Asserted on the href because that is the thing that changed.
+    const review = await screen.findByRole('link', { name: 'Review' });
+    expect(review).toHaveAttribute('href', '/loans/7');
   });
 
-  it('surfaces a server-side validation message on the tenure field', async () => {
-    const user = userEvent.setup();
-    listLoans.mockResolvedValue([PENDING_LOAN]);
-    approveLoan.mockRejectedValue(
-      Object.assign(new Error('Tenure is required'), {
-        status: 400,
-        fieldErrors: { tenureMonths: 'Tenure must be at least 1 month' },
-      }),
-    );
+  it('still links a decided loan, so its details and documents stay reachable', async () => {
+    listLoans.mockResolvedValue([
+      { ...PENDING_LOAN, loanId: 8, loanStatus: 'APPROVED', tenureMonths: 240, monthlyEmi: 43391.16 },
+    ]);
 
     renderPage();
-    await screen.findByRole('button', { name: 'Approve' });
-    await user.click(screen.getByRole('button', { name: 'Approve' }));
-    await user.type(screen.getByLabelText(/Tenure in months/), '240');
-    await user.click(screen.getByRole('button', { name: 'Confirm approval' }));
 
-    expect(await screen.findByText('Tenure must be at least 1 month')).toBeInTheDocument();
+    // Labelled "View" rather than "Review": there is nothing left to decide, but
+    // the documents are still worth reading, and hiding the link would make them
+    // unreachable from the list.
+    expect(await screen.findByRole('link', { name: 'View' })).toHaveAttribute('href', '/loans/8');
+    expect(screen.queryByRole('link', { name: 'Review' })).not.toBeInTheDocument();
   });
 
-  it('offers no approval control to a customer', async () => {
+  it('offers no review link to a customer', async () => {
     ADMIN.isAdmin = false;
     listLoans.mockResolvedValue([PENDING_LOAN]);
 
     renderPage();
 
     await screen.findByText('Pending');
-    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    // Approval is an officer's action. The column disappears entirely rather than
+    // rendering an empty one.
+    expect(screen.queryByRole('link', { name: 'Review' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'View' })).not.toBeInTheDocument();
     ADMIN.isAdmin = true;
   });
 });

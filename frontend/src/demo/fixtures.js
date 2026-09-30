@@ -113,12 +113,24 @@ export function buildDataset({ customerCount = 100, now = new Date() } = {}) {
     const email = `demo.user${String(i).padStart(3, '0')}@lms-oc.test`;
     const accountNumber = 304000000000 + i * 1000003 + Math.floor(random() * 900000);
     const branch = BRANCHES[Math.floor(random() * BRANCHES.length)];
+    const birthYear = 1965 + Math.floor(random() * 35);
+    const birthMonth = 1 + Math.floor(random() * 12);
+    const birthDay = 1 + Math.floor(random() * 28);
 
+    // `userId` is carried on the record rather than derived from its position in
+    // the array. A customer registered during the demo is appended to that array,
+    // and an identity derived from the index would silently renumber everyone
+    // behind it - so the account-opening request one of them filed would be
+    // attributed to a stranger.
     const customer = {
+      userId: 1000 + i,
       customer: {
         accountNumber,
         fullName,
         email,
+        // Mirrors the backend's profile: date of birth is part of who a customer
+        // is, and the account-opening form shows what the bank already holds.
+        dob: `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`,
         phoneNo: `9${String(800000000 + i).padStart(9, '0')}`,
         branchCode: branch.branchCode,
       },
@@ -154,10 +166,91 @@ export function buildDataset({ customerCount = 100, now = new Date() } = {}) {
     }
   }
 
+  // Applicants: registered customers who have not opened an account yet, each
+  // with a request waiting on an officer.
+  //
+  // Seeded rather than left empty because the officer's queue would otherwise be
+  // blank on arrival, and a queue with nothing in it is indistinguishable from a
+  // broken one. Without these, the one screen that shows the review decision can
+  // only be reached by registering a customer and filing a request first, which
+  // makes the demo's most interesting state the hardest one to demonstrate.
+  //
+  // They are separate from the customers above because they are a different
+  // thing: a customer with an account cannot file an account-opening request at
+  // all, so giving one of them a request would be a state the real backend
+  // refuses to produce.
+  const requests = [];
+  const APPLICANT_OUTCOMES = ['PENDING', 'PENDING', 'APPROVED', 'REJECTED'];
+  APPLICANT_OUTCOMES.forEach((outcome, i) => {
+    const fullName = `${FIRST_NAMES[Math.floor(random() * FIRST_NAMES.length)]} ${
+      LAST_NAMES[Math.floor(random() * LAST_NAMES.length)]
+    }`;
+    const email = `demo.applicant${String(i).padStart(3, '0')}@lms-oc.test`;
+    // Above both the generated ids (1000+) and the range registration mints
+    // from (2000+), so a customer registered live can never be handed an
+    // applicant id, and an applicant can never be handed a duplicate.
+    const userId = 9000 + i;
+    const requestedAt = new Date(Date.UTC(2026, 8, 12 + i, 9 + i, 15)).toISOString();
+
+    const applicant = {
+      userId,
+      customer: {
+        // Null rather than absent while undecided: that is the state the
+        // customer pages branch on, and a missing key reads the same way only by
+        // accident.
+        accountNumber: null,
+        fullName,
+        email,
+        dob: `${1960 + i}-0${1 + i}-1${i}`,
+        phoneNo: `9${String(700000000 + i).padStart(9, '0')}`,
+        branchCode: BRANCHES[i % BRANCHES.length].branchCode,
+      },
+      username: email,
+    };
+
+    const request = {
+      requestId: i + 1,
+      userId,
+      panNo: `${String.fromCharCode(65 + i)}${String.fromCharCode(70 + i)}CDE${1000 + i}F`,
+      status: outcome,
+      requestedAt,
+    };
+
+    if (outcome === 'PENDING') {
+      // Left without a review timestamp, a note, or an account number, matching
+      // the backend's non-null inclusion: an undecided request has none of them.
+    } else {
+      request.reviewedAt = new Date(Date.UTC(2026, 8, 20 + i, 11, 0)).toISOString();
+      request.reviewNotes =
+        outcome === 'REJECTED'
+          ? 'The PAN could not be matched against any record. Please recheck it and apply again.'
+          : 'Verified against the submitted documents.';
+
+      if (outcome === 'APPROVED') {
+        // An approval that opened no account would be a state the backend cannot
+        // produce, and it would leave this applicant permanently unable to apply
+        // for a loan while appearing to be a full customer.
+        const accountNumber = 304000000000 + 5000000 + i;
+        applicant.customer.accountNumber = accountNumber;
+        accounts.set(accountNumber, applicant.customer);
+        request.resultingAccountNumber = accountNumber;
+      }
+    }
+
+    customers.push(applicant);
+    requests.push(request);
+  });
+
   return {
     customers,
     loans,
     accounts,
+    requests,
+    // Documents, likewise keyed by nothing: each records the loan it was filed
+    // against. Documents belong to an application rather than to a customer,
+    // which is the rule the server enforces and the reason a customer's id is
+    // never enough to find one.
+    documents: [],
     admin: {
       userId: 1,
       username: 'admin',

@@ -59,3 +59,26 @@ export function formatStatus(status) {
   if (!status) return 'Unknown';
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
+
+/**
+ * 1536 -> "1.5 KB".
+ *
+ * Binary units, because that is how the browser and the server's own 10 MB
+ * ceiling are both quoted; a file the browser calls 10 MB is the file the server
+ * refuses, and the number shown to the user has to be the same one.
+ */
+export function formatBytes(bytes) {
+  if (bytes === null || bytes === undefined) return '-';
+  if (bytes < 1024) return `${bytes} B`;
+
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  // One decimal below 10, none above, so "9.5 MB" and "12 MB" rather than a
+  // column of "10.24 MB" that nobody can compare against a limit.
+  return `${value >= 10 ? Math.round(value) : Math.round(value * 10) / 10} ${units[unit]}`;
+}
